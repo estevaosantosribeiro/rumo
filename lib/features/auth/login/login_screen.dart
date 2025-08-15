@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:rumo/core/asset_images.dart';
+import 'package:rumo/features/auth/repositories/auth_repository.dart';
+import 'package:rumo/features/auth/widgets/forgot_password_dialog.dart';
+import 'package:rumo/features/home/routes/home_routes.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,6 +14,10 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  bool hidePassword = true;
   bool isLoading = false;
 
   @override
@@ -135,6 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             spacing: 16,
                             children: [
                               TextFormField(
+                                controller: _emailController,
                                 decoration: const InputDecoration(
                                   hintText: 'E-mail',
                                 ),
@@ -176,10 +184,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                 },
                               ),
                               TextFormField(
-                                decoration: const InputDecoration(
+                                controller: _passwordController,
+                                decoration: InputDecoration(
                                   hintText: 'Senha',
+                                  suffixIcon: IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        hidePassword = !hidePassword;
+                                      });
+                                    },
+                                    icon: Icon(
+                                      hidePassword
+                                          ? Icons.visibility_off
+                                          : Icons.visibility,
+                                    ),
+                                  ),
                                 ),
-                                obscureText: true,
+                                obscureText: hidePassword,
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
                                     return 'Por favor, insira uma senha';
@@ -194,44 +215,90 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(
                           width: double.maxFinite,
                           child: FilledButton(
-                            onPressed: () async {
-                              final isValid =
-                                  _formKey.currentState?.validate() ?? false;
-                              if (isValid) {
-                                setState(() {
-                                  isLoading = true;
-                                });
+                            onPressed: isLoading
+                                ? null
+                                : () async {
+                                    final isValid =
+                                        _formKey.currentState?.validate() ??
+                                        false;
+                                    if (isValid) {
+                                      try {
+                                        setState(() {
+                                          isLoading = true;
+                                        });
 
-                                await Future.delayed(Duration(seconds: 2));
+                                        final authRepository = AuthRepository();
+                                        await authRepository.signInUser(
+                                          email: _emailController.text,
+                                          password: _passwordController.text,
+                                        );
 
-                                setState(() {
-                                  isLoading = false;
-                                });
-                              }
-                            },
+                                        setState(() {
+                                          isLoading = false;
+                                        });
+
+                                        if (!context.mounted) return;
+                                        Navigator.of(
+                                          context,
+                                        ).popUntil((route) => route.isFirst);
+                                        Navigator.pushReplacementNamed(
+                                          context,
+                                          HomeRoutes.homeScreen,
+                                        );
+                                      } on AuthException catch (error) {
+                                        if (!context.mounted) return;
+
+                                        setState(() {
+                                          isLoading = false;
+                                        });
+
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) {
+                                            return AlertDialog(
+                                              title: Text('Erro'),
+                                              content: Text(error.getMessage()),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Navigator.of(context).pop();
+                                                  },
+                                                  child: Text("OK"),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                      }
+                                    }
+                                  },
                             child: Builder(
                               builder: (context) {
                                 if (isLoading) {
-                                  return const SizedBox(
+                                  return SizedBox(
                                     width: 24,
                                     height: 24,
                                     child: CircularProgressIndicator(
                                       color: Colors.white,
-                                      strokeWidth: 2,
                                     ),
                                   );
                                 }
-                                return const Text('Entrar');
+                                return Text('Entrar');
                               },
-                            )
-                            
-                            ,
+                            ),
                           ),
                         ),
                         // const SizedBox(height: 16),
                         Center(
                           child: TextButton(
-                            onPressed: () {},
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) {
+                                  return ForgotPasswordDialog();
+                                },
+                              );
+                            },
                             child: const Text('Esqueci minha senha'),
                           ),
                         ),
